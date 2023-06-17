@@ -1,0 +1,172 @@
+import numpy as np
+import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
+
+from sklearn import preprocessing
+
+from sklearn.naive_bayes import MultinomialNB
+
+from sklearn.neighbors import KNeighborsClassifier
+
+from sklearn.preprocessing import StandardScaler
+from sklearn import svm
+
+def citire(nume_fisier):
+    f=open(nume_fisier)
+    if nume_fisier == 'train.txt' or nume_fisier == 'validation.txt':
+        datele=[]
+        etichetele=[]
+        cap_tabel_id,cap_tabel_eticheta=f.readline().split(',')
+        
+        for linie in f.readlines():#parcurg linie cu linie fisierul pana la final
+            idul_antrenare,eticheta_antrenare =linie.split(',')
+            eticheta = int(eticheta_antrenare[0])#daca este lasata doar eticheta atunci va arata de tipul '3\n'
+            # astfel trebuie sa luam doar primul caracter
+            
+            imagine = mpimg.imread('./train+validation/'+idul_antrenare) # in acest mod incarcam imaginea din fisierul comun
+            #de antrenare si validare si va rezulta o matrice
+            datele.append(imagine)
+            etichetele.append(eticheta)
+        return datele,etichetele
+    if nume_fisier == 'test.txt':
+        datele=[]
+        id_uri_test=[] #pentru a retine in ordine id_urile imaginilor
+        cap_tabel_id=f.readline()
+
+        for linie in f.readlines():#parcurg linie cu linie fisierul pana la final
+            idul_test = linie #pe linie avem doar id_imagine (la final are \n)
+            id_test,ext = idul_test.split('.') #fac split dupa . pentru a putea inlatura si \n
+
+            id_uri_test.append(id_test+'.png') #refac id-ul pozei si o salvez
+            imagine = mpimg.imread('./test/'+id_test+'.png') #se face ca matrice
+            datele.append(imagine)
+        return datele,id_uri_test
+
+
+datele_antrenare,etichetele_antrenare=citire('train.txt') 
+# print(datele_antrenare[0])
+#plt.imshow(datele_antrenare[2])
+#print(etichetele_antrenare[2])
+
+datele_validare,etichetele_validare=citire('validation.txt')
+#plt.imshow(datele_validare[2])
+
+datele_test,id_uri_test=citire('test.txt')
+# print(datele_test[0])
+#plt.imshow(datele_test[2])
+
+#trebuie facute np.array pt a face reshape
+datele_antrenare=np.array(datele_antrenare)
+etichetele_antrenare=np.array(etichetele_antrenare)
+
+datele_validare=np.array(datele_validare)
+etichetele_validare=np.array(etichetele_validare)
+
+datele_test=np.array(datele_test)
+
+
+#trebuie sa facem reshape pentru ca in momentul in care antrenam modelul functia fit permite un numar <=2 dimensiuni
+
+#print(datele_antrenare.shape) #contine 4 elemente : numarul de date, inaltimea,latimea si canalul de culori (=3)
+
+#reshape pe date de antrenare
+numar_date,inaltime,latime,canal_culori = datele_antrenare.shape
+datele_antrenare=datele_antrenare.reshape(numar_date,inaltime*latime*canal_culori)
+
+#reshape pe date de validare
+numar_date_2,inaltime_2,latime_2,canal_culori_2 = datele_validare.shape
+datele_validare=datele_validare.reshape(numar_date_2,inaltime_2*latime_2*canal_culori_2)
+
+#trebuie sa facem reshape pentru ca sirul datele_test are dimensiune 4, iar predict accepta o dimensiune <=2
+numar_date_3,inaltime_3,latime_3,canal_culori_3 = datele_test.shape
+datele_test=datele_test.reshape(numar_date_3,inaltime_3*latime_3*canal_culori_3)
+
+
+#Aplicam clasificatorul Naive Bayes
+model_naive_bayes = MultinomialNB()
+model_naive_bayes.fit(datele_antrenare, etichetele_antrenare)
+model_naive_bayes.score(datele_validare, etichetele_validare)
+print(model_naive_bayes.score(datele_validare, etichetele_validare))
+
+predictii_naive_bayes = model_naive_bayes.predict(datele_test)
+
+
+# model_Knn_clasificator = KNeighborsClassifier(n_neighbors=29)
+model_Knn_clasificator = KNeighborsClassifier(n_neighbors=23) #pe setul de testare da mai putin decat pentru numarul de vecini =29
+model_Knn_clasificator.fit(datele_antrenare,etichetele_antrenare)
+print(model_Knn_clasificator.score(datele_validare, etichetele_validare))
+
+predictii_Knn_clasificator= model_Knn_clasificator.predict(datele_test)
+
+# #predictii pentru un numar de vecini de la 1-99
+# numar_vecini = 40
+# #numar_vecini =100
+# scoruri=[]
+# vecini=[]
+# for i in range(1,numar_vecini):
+#     model_Knn_clasificator = KNeighborsClassifier(n_neighbors=i)
+#     model_Knn_clasificator.fit(datele_antrenare,etichetele_antrenare)
+#     scoruri.append(model_Knn_clasificator.score(datele_validare, etichetele_validare))
+#     vecini.append(i)
+# scoruri=np.array(scoruri)
+# vecini=np.array(vecini)
+# plt.plot(vecini,scoruri)
+# # cea mai buna valoare: 23   0.44671781756180734
+# plt.show()
+# 
+
+# #standardizam
+# scalare = StandardScaler()
+# scalare.fit(datele_antrenare)
+# datele_antrenare = scalare.transform(datele_antrenare)
+# #print(datele_antrenare)
+# datele_validare = scalare.transform(datele_validare)
+# datele_test = scalare.transform(datele_test)
+
+model_Svm = svm.SVC(C=20,kernel="linear")
+model_Svm.fit(datele_antrenare,etichetele_antrenare)
+print(model_Svm.score(datele_antrenare,etichetele_antrenare))
+predictii_Svm_clasificator= model_Svm.predict(datele_test)
+
+
+def matrice_confuzie(etichete_prezise,etichete):
+    dimensiune = np.unique(etichete_prezise).shape[0]
+    matrice_confuzie = np.zeros((dimensiune,dimensiune))
+    for i in range(etichete.shape[0]):
+        matrice_confuzie[int(etichete[i]),int(etichete_prezise[i])]+=1
+    return matrice_confuzie
+
+# print(matrice_confuzie(predictii_naive_bayes,etichetele_validare))
+# print()
+# print(matrice_confuzie(predictii_Knn_clasificator,etichetele_validare))
+
+
+
+import csv
+
+# fisier_afisare = open("naiveBayes2.csv", "w")
+# scriere = csv.writer(fisier_afisare)
+# scriere.writerow(["id","label"])
+
+# for i in range(len(predictii_naive_bayes)):
+#     scriere.writerow([id_uri_test[i],predictii_naive_bayes[i]])
+# fisier_afisare.close()
+
+#fisier_afisare = open("Knn_Classifier.csv", "w") #cu 29 la numar vecini
+# fisier_afisare = open("Knn_Classifier2.csv", "w") #cu 23
+
+# scriere = csv.writer(fisier_afisare)
+# scriere.writerow(["id","label"])
+
+# for i in range(len(predictii_Knn_clasificator)):
+#     scriere.writerow([id_uri_test[i],predictii_Knn_clasificator[i]])
+# fisier_afisare.close()
+#
+#fisier_afisare = open("svm1.csv", "w") #(C=1,kernel="linear")
+fisier_afisare = open("svm2.csv", "w")
+scriere = csv.writer(fisier_afisare)
+scriere.writerow(["id","label"])
+
+for i in range(len(predictii_Svm_clasificator)):
+    scriere.writerow([id_uri_test[i],predictii_Svm_clasificator[i]])
+fisier_afisare.close()
